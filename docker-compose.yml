@@ -1,0 +1,75 @@
+version: '3'
+services:
+  members_service:
+    image: event-driven-go
+    build:
+      context: .
+    command: go run members-service/main.go
+    ports:
+      - "8580:8080"
+    depends_on:
+      - kafka
+    environment:
+      - BROKER_HOST=kafka
+      - BROKER_PORT=9092
+    volumes:
+      - ./:/root/go/src/github.com/gkuhn1/event-driven-go
+
+  orders_service:
+    image: event-driven-go
+    build:
+      context: .
+    command: go run orders-service/main.go
+    ports:
+      - "8581:8080"
+    depends_on:
+      - kafka
+    environment:
+      - BROKER_HOST=kafka
+      - BROKER_PORT=9092
+    volumes:
+      - ./:/root/go/src/github.com/gkuhn1/event-driven-go
+
+  payments_service:
+    image: event-driven-go
+    build:
+      context: .
+    command: go run payments-service/main.go
+    ports:
+      - "8582:8080"
+    depends_on:
+      - kafka
+    environment:
+      - BROKER_HOST=kafka
+      - BROKER_PORT=9092
+    volumes:
+      - ./:/root/go/src/github.com/gkuhn1/event-driven-go
+
+  shipping_service:
+    image: event-driven-go
+    build:
+      context: .
+    command: go run shipping-service/main.go
+    ports:
+      - "8583:8080"
+    depends_on:
+      - kafka
+    environment:
+      - BROKER_HOST=kafka
+      - BROKER_PORT=9092
+    volumes:
+      - ./:/root/go/src/github.com/gkuhn1/event-driven-go
+
+  zookeeper:
+    image: wurstmeister/zookeeper
+ 
+  kafka:
+    image: wurstmeister/kafka:2.11-0.10.2.1
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    links:
+      - zookeeper
+    depends_on:
+      - zookeeper
