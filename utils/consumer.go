@@ -35,7 +35,7 @@ func Consume(topics []string, group string, callback func(message *kafka.Message
 
 		switch e := ev.(type) {
 		case *kafka.Message:
-			fmt.Printf("Consumed message on %s: %s\n",
+			fmt.Printf("Event received on %s: %s\n",
 				e.TopicPartition, string(e.Value))
 			callback(e)
 		case kafka.Error:
