@@ -7,29 +7,37 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
-var producer *kafka.Producer
-var broker string
+type Producer struct {
+	kafkaProducer *kafka.Producer
+}
 
-func init() {
-	broker = fmt.Sprintf("%s:9092", os.Getenv("BROKER_HOST"))
-	var err error
-	producer, err = kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": broker})
+func NewProducer() *Producer {
+	producer, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": getBroker()})
 	if err != nil {
 		fmt.Printf("Failed to create producer: %s\n", err)
-		return
+		return nil
 	}
 
 	fmt.Printf("Created Producer %v\n", producer)
+	return &Producer{
+		kafkaProducer: producer,
+	}
 }
 
-func ProduceMessage(value string, topic string) error {
+func (p *Producer) ProduceMessage(value string, topic string) error {
 
-	err := producer.Produce(&kafka.Message{
+	err := p.kafkaProducer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Value:          []byte(value),
 	}, nil)
 
+	p.kafkaProducer.Flush(15 * 1000)
+
 	fmt.Printf("Produced to %s: %s\n", topic, value)
 
 	return err
+}
+
+func getBroker() string {
+	return fmt.Sprintf("%s:9092", os.Getenv("BROKER_HOST"))
 }

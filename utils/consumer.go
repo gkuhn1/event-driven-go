@@ -9,6 +9,8 @@ import (
 
 func Consume(topics []string, group string, callback func(message *kafka.Message)) error {
 
+	broker := getBroker()
+
 	fmt.Println("Broker: ", broker)
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":  broker,
@@ -42,7 +44,7 @@ func Consume(topics []string, group string, callback func(message *kafka.Message
 			// Errors should generally be considered as informational, the client will try to automatically recover
 			fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
 		default:
-			// fmt.Printf("Ignored %v\n", e)
+			fmt.Printf("Ignored %v\n", e)
 		}
 	}
 

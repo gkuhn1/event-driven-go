@@ -69,6 +69,7 @@ services:
       KAFKA_ADVERTISED_HOST_NAME: kafka
       KAFKA_ADVERTISED_PORT: 9092
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CREATE_TOPICS: "new_member:1:1,order_completed:1:1,payment_authorized:1:1,shipping_confirmed:1:1,capture_payment:1:1,new_order:1:1,new_shipment:1:1"
     links:
       - zookeeper
     depends_on:
