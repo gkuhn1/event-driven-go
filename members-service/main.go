@@ -11,45 +11,56 @@ import (
 )
 
 func main() {
-
-	go initConsumer()
-
 	fmt.Println("Running members-service")
 
-	api := NewAPI()
-	r := mux.NewRouter()
-	r.HandleFunc("/members", api.handler).Methods("POST")
-
-	utils.RunServer(r)
+	server := NewServer()
+	go server.initConsumer()
+	// blocking call
+	utils.RunServer(server)
 }
 
-type API struct {
+type Server struct {
 	Producer *utils.Producer
-	Handler  func(w http.ResponseWriter, r *http.Request)
+	router   *mux.Router
 }
 
-func NewAPI() *API {
-	return &API{
+func NewServer() *Server {
+	s := &Server{
 		Producer: utils.NewProducer(),
+		router:   mux.NewRouter(),
 	}
+	s.router.HandleFunc("/members", s.handler).Methods("POST")
+	return s
 }
 
-func (api *API) handler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetMux() *mux.Router {
+	return s.router
+}
+
+func (s *Server) Close() {
+	s.Producer.Close()
+}
+
+func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	fmt.Println("POST /members => ", name)
 
 	response := fmt.Sprintf("{\"member\":{\"name\": \"%s\"}}", name)
 	w.Write([]byte(response))
 
-	api.Producer.ProduceMessage(name, "new_member")
-	return
+	s.Producer.ProduceMessage(name, "new_member")
 }
 
-func callback(m *kafka.Message) {
-	fmt.Println("Callback ....")
+func (s *Server) callback(m *kafka.Message) {
+	v := string(m.Value)
+	switch *m.TopicPartition.Topic {
+	case "new_member":
+		fmt.Println("New member received: ", v)
+	default:
+		fmt.Printf("Callback .... %s\n", *m.TopicPartition.Topic)
+	}
 }
 
-func initConsumer() {
-	// utils.Consume([]string{"new_member"}, "members-service-consumer-events", callback)
-	return
+func (s *Server) initConsumer() {
+	utils.Consume([]string{"new_member"}, "members-service-consumer-events", s.callback)
 }

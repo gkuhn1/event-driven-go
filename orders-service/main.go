@@ -13,14 +13,51 @@ var orderNum int
 
 func main() {
 
-	go initConsumer()
-
 	fmt.Println("Running orders-service")
 
-	initAPI()
+	server := NewServer()
+	go server.initConsumer()
+	// blocking call
+	utils.RunServer(server)
 }
 
-func callback(m *kafka.Message) {
+type Server struct {
+	Producer *utils.Producer
+	router   *mux.Router
+}
+
+func NewServer() *Server {
+	s := &Server{
+		Producer: utils.NewProducer(),
+		router:   mux.NewRouter(),
+	}
+	s.router.HandleFunc("/orders", s.handler).Methods("POST")
+	return s
+}
+
+func (s *Server) GetMux() *mux.Router {
+	return s.router
+}
+
+func (s *Server) Close() {
+	s.Producer.Close()
+}
+
+func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
+	orderNum++
+	fmt.Println("POST /orders => ", orderNum)
+
+	response := fmt.Sprintf("{\"order\":{\"num\": \"%d\"}}", orderNum)
+	w.Write([]byte(response))
+
+	s.Producer.ProduceMessage(fmt.Sprintf("%d", orderNum), "new_order")
+}
+
+func (s *Server) initConsumer() {
+	utils.Consume([]string{"new_member", "payment_authorized", "shipping_confirmed", "order_completed"}, "orders-service-consumer-events", s.callback)
+}
+
+func (s *Server) callback(m *kafka.Message) {
 	v := string(m.Value)
 	switch *m.TopicPartition.Topic {
 	case "new_member":
@@ -28,36 +65,14 @@ func callback(m *kafka.Message) {
 	case "payment_authorized":
 		fmt.Println("Got payment authorized for: ", v)
 		fmt.Println("Shipping order: ", v)
-		utils.ProduceMessage(v, "new_shipment")
+		s.Producer.ProduceMessage(v, "new_shipment")
 	case "shipping_confirmed":
 		fmt.Println("Order shipment confirmed: ", v)
 		fmt.Println("Capturing payment...")
-		utils.ProduceMessage(v, "capture_payment")
+		s.Producer.ProduceMessage(v, "capture_payment")
 	case "order_completed":
 		fmt.Printf("Order %s complete!\n", v)
 	default:
 		fmt.Printf("Callback .... %s\n", *m.TopicPartition.Topic)
 	}
-}
-
-func initConsumer() {
-	utils.Consume([]string{"new_member", "payment_authorized", "shipping_confirmed", "order_completed"}, "orders-service-consumer-events", callback)
-	return
-}
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	orderNum++
-	fmt.Println("POST /orders => ", orderNum)
-
-	response := fmt.Sprintf("{\"order\":{\"num\": \"%d\"}}", orderNum)
-	w.Write([]byte(response))
-
-	utils.ProduceMessage(fmt.Sprintf("%d", orderNum), "new_order")
-	return
-}
-
-func initAPI() {
-	r := mux.NewRouter()
-	r.HandleFunc("/orders", handler).Methods("POST")
-	utils.RunServer(r)
 }

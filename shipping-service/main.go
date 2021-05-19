@@ -11,15 +11,40 @@ import (
 )
 
 func main() {
-
-	go initConsumer()
-
 	fmt.Println("Running shipping-service")
 
-	initAPI()
+	server := NewServer()
+	go server.initConsumer()
+	// blocking call
+	utils.RunServer(server)
 }
 
-func callback(m *kafka.Message) {
+type Server struct {
+	Producer *utils.Producer
+	router   *mux.Router
+}
+
+func NewServer() *Server {
+	s := &Server{
+		Producer: utils.NewProducer(),
+		router:   mux.NewRouter(),
+	}
+	s.router.HandleFunc("/shipping", s.handler).Methods("POST")
+	return s
+}
+
+func (s *Server) GetMux() *mux.Router {
+	return s.router
+}
+
+func (s *Server) Close() {
+	s.Producer.Close()
+}
+
+func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
+}
+
+func (s *Server) callback(m *kafka.Message) {
 	v := string(m.Value)
 	switch *m.TopicPartition.Topic {
 	case "new_member":
@@ -28,31 +53,12 @@ func callback(m *kafka.Message) {
 		fmt.Println("Got new shippiment authorized for order: ", v)
 		fmt.Println("Shipping order: ", v)
 		time.Sleep(3 * time.Second)
-		utils.ProduceMessage(v, "shipping_confirmed")
+		s.Producer.ProduceMessage(v, "shipping_confirmed")
 	default:
 		fmt.Printf("Callback .... %s\n", *m.TopicPartition.Topic)
 	}
-
 }
 
-func initConsumer() {
-	utils.Consume([]string{"new_member", "new_shipment"}, "shipping-service-consumer-events", callback)
-	return
-}
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	// name := r.FormValue("name")
-	// fmt.Println("Got request for ", name)
-
-	// response := fmt.Sprintf("{\"member\":{\"name\": \"%s\"}}", name)
-	// w.Write([]byte(response))
-
-	// utils.ProduceMessage(response, "new_member")
-	return
-}
-
-func initAPI() {
-	r := mux.NewRouter()
-	r.HandleFunc("/shipping", handler).Methods("POST")
-	utils.RunServer(r)
+func (s *Server) initConsumer() {
+	utils.Consume([]string{"new_member", "new_shipment"}, "shipping-service-consumer-events", s.callback)
 }

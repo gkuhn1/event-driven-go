@@ -44,7 +44,8 @@ func Consume(topics []string, group string, callback func(message *kafka.Message
 			// Errors should generally be considered as informational, the client will try to automatically recover
 			fmt.Fprintf(os.Stderr, "%% Error: %v\n", e)
 		default:
-			fmt.Printf("Ignored %v\n", e)
+			// Notifications for rebalancing, commited offsets, etc...
+			// fmt.Printf("Ignored %v\n", e)
 		}
 	}
 

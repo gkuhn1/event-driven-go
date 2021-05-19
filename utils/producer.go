@@ -31,11 +31,13 @@ func (p *Producer) ProduceMessage(value string, topic string) error {
 		Value:          []byte(value),
 	}, nil)
 
-	p.kafkaProducer.Flush(15 * 1000)
-
 	fmt.Printf("Produced to %s: %s\n", topic, value)
 
 	return err
+}
+
+func (p *Producer) Close() {
+	p.kafkaProducer.Close()
 }
 
 func getBroker() string {

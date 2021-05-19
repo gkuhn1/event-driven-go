@@ -11,15 +11,40 @@ import (
 )
 
 func main() {
-
-	go initConsumer()
-
 	fmt.Println("Running payments-service")
 
-	initAPI()
+	server := NewServer()
+	go server.initConsumer()
+	// blocking call
+	utils.RunServer(server)
 }
 
-func callback(m *kafka.Message) {
+type Server struct {
+	Producer *utils.Producer
+	router   *mux.Router
+}
+
+func NewServer() *Server {
+	s := &Server{
+		Producer: utils.NewProducer(),
+		router:   mux.NewRouter(),
+	}
+	s.router.HandleFunc("/payments", s.handler).Methods("POST")
+	return s
+}
+
+func (s *Server) GetMux() *mux.Router {
+	return s.router
+}
+
+func (s *Server) Close() {
+	s.Producer.Close()
+}
+
+func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
+}
+
+func (s *Server) callback(m *kafka.Message) {
 	v := string(m.Value)
 	switch *m.TopicPartition.Topic {
 	case "new_member":
@@ -29,35 +54,17 @@ func callback(m *kafka.Message) {
 		fmt.Println("Authorizing Payment...")
 		time.Sleep(2 * time.Second)
 		fmt.Printf("Payment for order %s authorized!\n", v)
-		utils.ProduceMessage(v, "payment_authorized")
+		s.Producer.ProduceMessage(v, "payment_authorized")
 	case "capture_payment":
 		fmt.Println("Capturing payment for order: ", v)
 		time.Sleep(2 * time.Second)
 		fmt.Println("Payment captured successfully.")
-		utils.ProduceMessage(v, "order_completed")
+		s.Producer.ProduceMessage(v, "order_completed")
 	default:
 		fmt.Printf("Callback .... %s\n", *m.TopicPartition.Topic)
 	}
 }
 
-func initConsumer() {
-	utils.Consume([]string{"new_member", "new_order", "capture_payment"}, "payments-service-consumer-events", callback)
-	return
-}
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	// name := r.FormValue("name")
-	// fmt.Println("Got request for ", name)
-
-	// response := fmt.Sprintf("{\"member\":{\"name\": \"%s\"}}", name)
-	// w.Write([]byte(response))
-
-	// utils.ProduceMessage(response, "new_member")
-	return
-}
-
-func initAPI() {
-	r := mux.NewRouter()
-	r.HandleFunc("/payments", handler).Methods("POST")
-	utils.RunServer(r)
+func (s *Server) initConsumer() {
+	utils.Consume([]string{"new_member", "new_order", "capture_payment"}, "payments-service-consumer-events", s.callback)
 }
